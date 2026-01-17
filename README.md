@@ -1,4 +1,4 @@
-# AI-Powered Personal Planning & Scheduling Agent
+AI-Powered Personal Planning & Scheduling Agent
 
 An intelligent task scheduling application that uses AI to analyze tasks, understand natural language descriptions, and automatically create optimal schedules in Google Calendar.
 
