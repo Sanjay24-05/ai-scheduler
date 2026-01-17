@@ -205,18 +205,21 @@ class SchedulerService:
                 
                 # Try to find a slot
                 task_duration = task.estimated_duration or 60  # Default 60 minutes
+                logger.debug(f"Attempting to schedule task {task.id} on {current_date.date()} starting from {current_time.time()}")
                 
                 while not scheduled and current_time + timedelta(minutes=task_duration) <= work_end:
                     # Check for lunch time
                     is_lunch, lunch_end = self._is_lunch_time(current_time, preferences, lunch_taken)
                     if is_lunch:
+                        logger.debug(f"Encountered lunch, moving to {lunch_end.time()}")
                         current_time = lunch_end
                         lunch_taken = True
-                        continue # Re-check if this new time fits or has conflicts
+                        continue
                     
                     # Check for break
                     new_curr, new_last = self._add_break_if_needed(current_time, last_break, preferences)
                     if new_curr != current_time:
+                        logger.debug(f"Encountered break, moving to {new_curr.time()}")
                         current_time = new_curr
                         last_break = new_last
                         continue
@@ -238,17 +241,21 @@ class SchedulerService:
                             "reasoning": self._generate_simple_reasoning(task, slot_start),
                         })
                         
-                        # Update current time with buffer (at least 1 min to avoid boundary overlap)
+                        # Update current time with buffer
                         buffer = max(preferences.buffer_time, 1)
                         current_time = slot_end + timedelta(minutes=buffer)
+                        last_break = current_time # Reset last_break for next task calculation if needed
                         scheduled = True
+                        logger.debug(f"Successfully scheduled task {task.id} at {slot_start}")
                     else:
                         # Move to next available slot after the conflict
                         next_slot = self._find_next_available_slot(current_time, busy_periods, task_duration, work_end)
-                        if next_slot and next_slot != current_time:
+                        if next_slot and next_slot > current_time:
+                            logger.debug(f"Conflict found, moving current_time to {next_slot.time()}")
                             current_time = next_slot
                         else:
                             # No more slots today
+                            logger.debug(f"No more slots for today on {current_date.date()}")
                             break
                 
                 if not scheduled:
@@ -261,6 +268,7 @@ class SchedulerService:
                         current_time = pytz.UTC.localize(current_time)
                     last_break = current_time
                     lunch_taken = False
+                    logger.debug(f"Moving to next day: {current_date.date()}")
             
             if not scheduled:
                 conflicts.append({

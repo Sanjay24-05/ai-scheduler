@@ -197,16 +197,22 @@ class CalendarService:
         try:
             service = self._get_service(credentials_dict)
             
+            # Ensure times are timezone-aware
+            if not start_time.tzinfo:
+                import pytz
+                start_time = pytz.UTC.localize(start_time)
+            if not end_time.tzinfo:
+                import pytz
+                end_time = pytz.UTC.localize(end_time)
+                
             event = {
                 'summary': summary,
                 'description': description,
                 'start': {
                     'dateTime': start_time.isoformat(),
-                    'timeZone': 'UTC',
                 },
                 'end': {
                     'dateTime': end_time.isoformat(),
-                    'timeZone': 'UTC',
                 },
             }
             
@@ -254,14 +260,20 @@ class CalendarService:
                 eventId=event_id
             ).execute()
             
+            # Ensure times are timezone-aware
+            if not start_time.tzinfo:
+                import pytz
+                start_time = pytz.UTC.localize(start_time)
+            if not end_time.tzinfo:
+                import pytz
+                end_time = pytz.UTC.localize(end_time)
+                
             # Update times
             event['start'] = {
                 'dateTime': start_time.isoformat(),
-                'timeZone': 'UTC',
             }
             event['end'] = {
                 'dateTime': end_time.isoformat(),
-                'timeZone': 'UTC',
             }
             
             # Update event

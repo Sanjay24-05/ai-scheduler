@@ -51,10 +51,18 @@ export default function Dashboard() {
                 return;
             }
 
-            await apiService.generateSchedule(taskIds);
+            const result = await apiService.generateSchedule(taskIds);
             await loadData();
             setActiveTab('schedule');
-            alert('Schedule generated successfully!');
+
+            const scheduledCount = result.schedule?.length || 0;
+            const conflictCount = result.conflicts?.length || 0;
+
+            if (conflictCount > 0) {
+                alert(`Scheduled ${scheduledCount} tasks, but ${conflictCount} tasks had conflicts and couldn't be scheduled. Please check task details or try a different date.`);
+            } else {
+                alert('Schedule generated successfully!');
+            }
         } catch (error) {
             console.error('Failed to generate schedule:', error);
             alert('Failed to generate schedule');
@@ -63,9 +71,17 @@ export default function Dashboard() {
 
     const handleSyncToCalendar = async () => {
         try {
-            await apiService.syncToCalendar();
+            const result = await apiService.syncToCalendar() as any;
             await loadData();
-            alert('Schedule synced to Google Calendar successfully!');
+
+            const syncedCount = result.synced || 0;
+            if (syncedCount > 0) {
+                alert(`Successfully synced ${syncedCount} items to Google Calendar!`);
+            } else if (result.message === "No schedules to sync") {
+                alert('All tasks are already synced or no schedule found to sync.');
+            } else {
+                alert('Sync failed or no items were updated. Check if you have granted calendar access.');
+            }
         } catch (error) {
             console.error('Failed to sync to calendar:', error);
             alert('Failed to sync to Google Calendar. Please make sure you have granted calendar permissions.');

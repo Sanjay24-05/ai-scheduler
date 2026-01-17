@@ -91,6 +91,7 @@ async def generate_schedule(
         )
         
         # Save schedule to database
+        scheduled_ids = []
         for item in result["schedule"]:
             # Check if schedule already exists for this task
             existing = db.query(Schedule).filter(
@@ -103,6 +104,7 @@ async def generate_schedule(
                 existing.start_time = item["start_time"]
                 existing.end_time = item["end_time"]
                 existing.reasoning = item["reasoning"]
+                existing.is_synced = False # Re-sync needed if time changed
             else:
                 # Create new schedule
                 schedule = Schedule(
@@ -119,8 +121,12 @@ async def generate_schedule(
             task = db.query(Task).filter(Task.id == item["task_id"]).first()
             if task:
                 task.status = TaskStatus.SCHEDULED
+                scheduled_ids.append(task.id)
         
         db.commit()
+        logger.info(f"Successfully scheduled tasks: {scheduled_ids}")
+        if result["conflicts"]:
+            logger.warning(f"Failed to schedule tasks (conflicts): {[c['task_id'] for c in result['conflicts']]}")
         
         return result
     

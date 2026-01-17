@@ -143,6 +143,9 @@ async def sync_to_calendar(
                 
                 if success:
                     schedule.is_synced = True
+                    # Safeguard: Ensure task status is also updated to SCHEDULED
+                    from models.task import TaskStatus
+                    task.status = TaskStatus.SCHEDULED
                     synced_count += 1
                 else:
                     errors.append(f"Failed to sync schedule {schedule.id}")
