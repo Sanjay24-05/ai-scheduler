@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  scheduling-agent:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: scheduling-agent
+    ports:
+      - "8000:8000"
+    environment:
+      # Application
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=sqlite:///./data/scheduler.db
+      - HOST=0.0.0.0
+      - PORT=8000
+      - FRONTEND_URL=http://localhost:8000
+
+      # Google OAuth
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
+
+      # Mistral AI
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - MISTRAL_MODEL=mistral-small-latest
+
+      # Security
+      - CORS_ORIGINS=http://localhost:8000,http://localhost:3000
+      - SESSION_COOKIE_SECURE=false
+      - SESSION_COOKIE_HTTPONLY=true
+      - SESSION_COOKIE_SAMESITE=Lax
+      - CSRF_SECRET=${CSRF_SECRET}
+
+      # Rate Limiting
+      - AI_RATE_LIMIT=50
+      - API_RATE_LIMIT=1000
+
+      # Logging
+      - LOG_LEVEL=INFO
+    volumes:
+      - scheduler-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  scheduler-data:
+    driver: local
