@@ -125,14 +125,16 @@ class SchedulerService:
         if candidates:
             # Take the first one (could be refined to find "most specific")
             g = candidates[0]
+            # If working hours are not set, fallback to preferences
             return {
-                "working_hours_start": g.working_hours_start,
-                "working_hours_end": g.working_hours_end,
+                "working_hours_start": g.working_hours_start or preferences.working_hours_start,
+                "working_hours_end": g.working_hours_end or preferences.working_hours_end,
                 "lunch_time": g.lunch_time,
                 "lunch_duration": g.lunch_duration,
                 "break_frequency": g.break_frequency,
                 "break_duration": g.break_duration,
-                "buffer_time": 5 # Default buffer for presets
+                "misc_breaks": g.misc_breaks or [],
+                "buffer_time": 5
             }
             
         # Fallback to default preferences
@@ -143,6 +145,7 @@ class SchedulerService:
             "lunch_duration": preferences.lunch_duration,
             "break_frequency": preferences.break_frequency,
             "break_duration": preferences.break_duration,
+            "misc_breaks": [],
             "buffer_time": preferences.buffer_time
         }
     
@@ -246,7 +249,7 @@ class SchedulerService:
                         current_time = work_start
                 
                 # Get busy periods for this day
-                busy_periods = self._get_busy_periods(calendar_events, schedule, current_date)
+                busy_periods = self._get_busy_periods(calendar_events, schedule, current_date, effective)
                 
                 # Try to find a slot
                 task_duration = task.estimated_duration or 60  # Default 60 minutes
@@ -331,9 +334,10 @@ class SchedulerService:
         self,
         calendar_events: List[Dict],
         schedule: List[Dict],
-        date: datetime
+        date: datetime,
+        guideline: Dict[str, Any] = None
     ) -> List[Tuple[datetime, datetime]]:
-        """Get all busy periods for a specific date."""
+        """Get all busy periods for a specific date, including misc breaks."""
         busy_periods = []
         
         # Add calendar events
@@ -348,6 +352,18 @@ class SchedulerService:
         for item in schedule:
             if item['start_time'].date() == date.date():
                 busy_periods.append((item['start_time'], item['end_time']))
+                
+        # Add misc breaks from guideline
+        if guideline and guideline.get("misc_breaks"):
+            for brk in guideline["misc_breaks"]:
+                try:
+                    # Parse HH:MM
+                    h, m = map(int, brk["start_time"].split(':'))
+                    brk_start = self._combine_datetime(date, dt_time(h, m))
+                    brk_end = brk_start + timedelta(minutes=brk.get("duration", 15))
+                    busy_periods.append((brk_start, brk_end))
+                except Exception as e:
+                    logger.error(f"Error parsing misc break: {str(e)}")
                 
         # Handle timezone awareness for all busy periods
         normalized_busy = []

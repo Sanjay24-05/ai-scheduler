@@ -7,6 +7,7 @@ from models.user import User
 from models.preferences import UserPreferences
 from services.auth_service import auth_service
 from utils.security import generate_state_token, create_access_token
+from config import settings
 import logging
 
 logger = logging.getLogger(__name__)

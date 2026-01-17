@@ -72,7 +72,7 @@ export default function Dashboard() {
 
     const handleRescheduleAll = async () => {
         try {
-            const result = await apiService.rescheduleAll();
+            await apiService.rescheduleAll();
             await loadData();
             setActiveTab('schedule');
             alert('Schedule re-optimized successfully!');

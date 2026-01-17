@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models.time_guideline import TimeGuideline
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import time, date as dt_date
 import logging
 
@@ -26,12 +26,13 @@ class PreferencesUpdate(BaseModel):
 
 class TimeGuidelineCreate(BaseModel):
     name: str
-    working_hours_start: str  # HH:MM
-    working_hours_end: str    # HH:MM
+    working_hours_start: Optional[str] = None  # HH:MM
+    working_hours_end: Optional[str] = None    # HH:MM
     lunch_time: Optional[str] = None
     lunch_duration: int = 60
     break_frequency: int = 90
     break_duration: int = 15
+    misc_breaks: Optional[List[Dict[str, Any]]] = []
     days_of_week: List[int]
     start_date: Optional[str] = None  # YYYY-MM-DD
     end_date: Optional[str] = None
@@ -46,6 +47,7 @@ class TimeGuidelineUpdate(BaseModel):
     lunch_duration: Optional[int] = None
     break_frequency: Optional[int] = None
     break_duration: Optional[int] = None
+    misc_breaks: Optional[List[Dict[str, Any]]] = None
     days_of_week: Optional[List[int]] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
@@ -226,8 +228,8 @@ async def create_time_guideline(
         user_id = get_current_user_id(request)
         
         # Parse times
-        wh_start = time(*map(int, data.working_hours_start.split(':')))
-        wh_end = time(*map(int, data.working_hours_end.split(':')))
+        wh_start = time(*map(int, data.working_hours_start.split(':'))) if data.working_hours_start else None
+        wh_end = time(*map(int, data.working_hours_end.split(':'))) if data.working_hours_end else None
         l_time = time(*map(int, data.lunch_time.split(':'))) if data.lunch_time else None
         
         # Parse dates
@@ -244,6 +246,7 @@ async def create_time_guideline(
             lunch_duration=data.lunch_duration,
             break_frequency=data.break_frequency,
             break_duration=data.break_duration,
+            misc_breaks=data.misc_breaks,
             days_of_week=data.days_of_week,
             start_date=s_date,
             end_date=e_date,
@@ -277,16 +280,21 @@ async def update_time_guideline(
         if not guideline:
             raise HTTPException(status_code=404, detail="Guideline not found")
         
-        if data.name: guideline.name = data.name
-        if data.working_hours_start:
-            guideline.working_hours_start = time(*map(int, data.working_hours_start.split(':')))
-        if data.working_hours_end:
-            guideline.working_hours_end = time(*map(int, data.working_hours_end.split(':')))
-        if data.lunch_time:
-            guideline.lunch_time = time(*map(int, data.lunch_time.split(':')))
+        if data.name is not None: guideline.name = data.name
+        
+        # Working hours - allow explicit null to unset
+        if data.working_hours_start is not None:
+            guideline.working_hours_start = time(*map(int, data.working_hours_start.split(':'))) if data.working_hours_start else None
+        if data.working_hours_end is not None:
+            guideline.working_hours_end = time(*map(int, data.working_hours_end.split(':'))) if data.working_hours_end else None
+            
+        if data.lunch_time is not None:
+            guideline.lunch_time = time(*map(int, data.lunch_time.split(':'))) if data.lunch_time else None
+            
         if data.lunch_duration is not None: guideline.lunch_duration = data.lunch_duration
         if data.break_frequency is not None: guideline.break_frequency = data.break_frequency
         if data.break_duration is not None: guideline.break_duration = data.break_duration
+        if data.misc_breaks is not None: guideline.misc_breaks = data.misc_breaks
         if data.days_of_week is not None: guideline.days_of_week = data.days_of_week
         if data.is_active is not None: guideline.is_active = data.is_active
         

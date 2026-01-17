@@ -4,13 +4,19 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../services/api.ts';
 
+interface MiscBreak {
+    start_time: string;
+    duration: number;
+}
+
 interface Guideline {
     id: number;
     name: string;
-    working_hours_start: string;
-    working_hours_end: string;
+    working_hours_start: string | null;
+    working_hours_end: string | null;
     lunch_time: string | null;
     lunch_duration: number;
+    misc_breaks: MiscBreak[];
     days_of_week: number[];
     start_date: string | null;
     end_date: string | null;
@@ -25,10 +31,11 @@ export default function TimeGuidelines() {
 
     const initialFormData = {
         name: '',
-        working_hours_start: '09:00',
-        working_hours_end: '17:00',
-        lunch_time: '12:00',
+        working_hours_start: '',
+        working_hours_end: '',
+        lunch_time: '',
         lunch_duration: 60,
+        misc_breaks: [] as MiscBreak[],
         days_of_week: [1, 2, 3, 4, 5],
         start_date: '',
         end_date: '',
@@ -55,9 +62,22 @@ export default function TimeGuidelines() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validation: At least one time guideline must be set
+        const hasWorkHours = formData.working_hours_start && formData.working_hours_end;
+        const hasLunch = formData.lunch_time;
+        const hasMiscBreaks = formData.misc_breaks.length > 0;
+
+        if (!hasWorkHours && !hasLunch && !hasMiscBreaks) {
+            alert('Please specify at least one time guideline (Working Hours, Lunch, or a Misc Break).');
+            return;
+        }
+
         try {
             const dataToSave = {
                 ...formData,
+                working_hours_start: formData.working_hours_start || null,
+                working_hours_end: formData.working_hours_end || null,
                 lunch_time: formData.lunch_time || null,
                 start_date: formData.start_date || null,
                 end_date: formData.end_date || null,
@@ -101,10 +121,11 @@ export default function TimeGuidelines() {
     const handleEdit = (g: Guideline) => {
         setFormData({
             name: g.name,
-            working_hours_start: g.working_hours_start.substring(0, 5),
-            working_hours_end: g.working_hours_end.substring(0, 5),
+            working_hours_start: g.working_hours_start ? g.working_hours_start.substring(0, 5) : '',
+            working_hours_end: g.working_hours_end ? g.working_hours_end.substring(0, 5) : '',
             lunch_time: g.lunch_time ? g.lunch_time.substring(0, 5) : '',
             lunch_duration: g.lunch_duration,
+            misc_breaks: g.misc_breaks || [],
             days_of_week: g.days_of_week,
             start_date: g.start_date || '',
             end_date: g.end_date || '',
@@ -120,6 +141,26 @@ export default function TimeGuidelines() {
             days_of_week: prev.days_of_week.includes(day)
                 ? prev.days_of_week.filter(d => d !== day)
                 : [...prev.days_of_week, day]
+        }));
+    };
+
+    const addMiscBreak = () => {
+        setFormData(prev => ({
+            ...prev,
+            misc_breaks: [...prev.misc_breaks, { start_time: '15:00', duration: 15 }]
+        }));
+    };
+
+    const updateMiscBreak = (index: number, field: keyof MiscBreak, value: any) => {
+        const newBreaks = [...formData.misc_breaks];
+        newBreaks[index] = { ...newBreaks[index], [field]: value };
+        setFormData(prev => ({ ...prev, misc_breaks: newBreaks }));
+    };
+
+    const removeMiscBreak = (index: number) => {
+        setFormData(prev => ({
+            ...prev,
+            misc_breaks: prev.misc_breaks.filter((_, i) => i !== index)
         }));
     };
 
@@ -156,29 +197,27 @@ export default function TimeGuidelines() {
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Working Hours Start</label>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 italic">Working Hours Start (Optional)</label>
                                 <input
                                     type="time"
                                     value={formData.working_hours_start}
                                     onChange={e => setFormData({ ...formData, working_hours_start: e.target.value })}
                                     className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg outline-none"
-                                    required
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Working Hours End</label>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 italic">Working Hours End (Optional)</label>
                                 <input
                                     type="time"
                                     value={formData.working_hours_end}
                                     onChange={e => setFormData({ ...formData, working_hours_end: e.target.value })}
                                     className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg outline-none"
-                                    required
                                 />
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Lunch Time</label>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 italic">Lunch Time (Optional)</label>
                                 <input
                                     type="time"
                                     value={formData.lunch_time}
@@ -197,7 +236,57 @@ export default function TimeGuidelines() {
                                 />
                             </div>
 
-                            <div className="col-span-full">
+                            <div className="col-span-full border-t border-gray-50 pt-4">
+                                <div className="flex justify-between items-center mb-4">
+                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest">Miscellaneous Breaks (Optional)</label>
+                                    <button
+                                        type="button"
+                                        onClick={addMiscBreak}
+                                        className="text-[10px] font-bold text-primary-600 hover:text-primary-700 uppercase tracking-widest"
+                                    >
+                                        + Add Break
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    {formData.misc_breaks.map((brk, idx) => (
+                                        <div key={idx} className="flex items-center gap-4 bg-gray-50/50 p-3 rounded-lg border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+                                            <div className="flex-1 grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-[10px] text-gray-400 mb-1">Start Time</label>
+                                                    <input
+                                                        type="time"
+                                                        value={brk.start_time}
+                                                        onChange={e => updateMiscBreak(idx, 'start_time', e.target.value)}
+                                                        className="w-full bg-transparent text-sm font-medium outline-none"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] text-gray-400 mb-1">Duration (min)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={brk.duration}
+                                                        onChange={e => updateMiscBreak(idx, 'duration', parseInt(e.target.value))}
+                                                        className="w-full bg-transparent text-sm font-medium outline-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => removeMiscBreak(idx)}
+                                                className="text-red-300 hover:text-red-500 transition-colors"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {formData.misc_breaks.length === 0 && (
+                                        <p className="text-[10px] text-gray-400 italic">No miscellaneous breaks added.</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="col-span-full border-t border-gray-50 pt-4">
                                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Applicable Days</label>
                                 <div className="flex flex-wrap gap-2">
                                     {days.map((day, idx) => (
@@ -216,7 +305,7 @@ export default function TimeGuidelines() {
                                 </div>
                             </div>
 
-                            <div>
+                            <div className="border-t border-gray-50 pt-4">
                                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Start Date (Optional)</label>
                                 <input
                                     type="date"
@@ -226,7 +315,7 @@ export default function TimeGuidelines() {
                                 />
                             </div>
 
-                            <div>
+                            <div className="border-t border-gray-50 pt-4">
                                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">End Date (Optional)</label>
                                 <input
                                     type="date"
@@ -293,18 +382,32 @@ export default function TimeGuidelines() {
                         </div>
 
                         <div className="space-y-3 mb-6">
-                            <div className="flex items-center gap-4 text-xs">
-                                <span className="text-gray-400 font-bold w-12">HOURS</span>
-                                <span className="text-gray-600 font-medium">
-                                    {g.working_hours_start.substring(0, 5)} - {g.working_hours_end.substring(0, 5)}
-                                </span>
-                            </div>
+                            {g.working_hours_start && (
+                                <div className="flex items-center gap-4 text-xs">
+                                    <span className="text-gray-400 font-bold w-12">HOURS</span>
+                                    <span className="text-gray-600 font-medium">
+                                        {g.working_hours_start.substring(0, 5)} - {g.working_hours_end?.substring(0, 5)}
+                                    </span>
+                                </div>
+                            )}
                             {g.lunch_time && (
                                 <div className="flex items-center gap-4 text-xs">
                                     <span className="text-gray-400 font-bold w-12">LUNCH</span>
                                     <span className="text-gray-600 font-medium">
                                         {g.lunch_time.substring(0, 5)} ({g.lunch_duration}m)
                                     </span>
+                                </div>
+                            )}
+                            {g.misc_breaks && g.misc_breaks.length > 0 && (
+                                <div className="flex items-start gap-4 text-xs">
+                                    <span className="text-gray-400 font-bold w-12 mt-0.5">BREAKS</span>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {g.misc_breaks.map((brk, i) => (
+                                            <span key={i} className="bg-gray-100 px-2 py-0.5 rounded text-gray-500 font-medium">
+                                                {brk.start_time.substring(0, 5)} ({brk.duration}m)
+                                            </span>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
                             {(g.start_date || g.end_date) && (

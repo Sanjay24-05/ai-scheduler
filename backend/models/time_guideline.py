@@ -19,17 +19,20 @@ class TimeGuideline(Base):
     name = Column(String(200), nullable=False)  # e.g., "Standard Work Week", "Intensive Project Week"
     is_active = Column(Boolean, default=True)
     
-    # Time Constraints
-    working_hours_start = Column(Time, nullable=False)
-    working_hours_end = Column(Time, nullable=False)
+    # Time Constraints (Optional)
+    working_hours_start = Column(Time, nullable=True)
+    working_hours_end = Column(Time, nullable=True)
     
     lunch_time = Column(Time, nullable=True)
     lunch_duration = Column(Integer, default=60)  # in minutes
     
-    # Frequency and Spacing (simplified for now as part of preset)
+    # Auto-breaks (Frequent periodic breaks)
     break_frequency = Column(Integer, default=90)  # in minutes
     break_duration = Column(Integer, default=15)   # in minutes
     
+    # Custom / Misc Fixed Breaks (JSON list of {"start_time": "HH:MM", "duration": int})
+    misc_breaks = Column(JSON, nullable=True, default=[])
+
     # Applicability Rules (JSON list of integers 0-6, e.g., [0,1,2,3,4])
     days_of_week = Column(JSON, nullable=False, default=[0,1,2,3,4])
     
@@ -51,6 +54,7 @@ class TimeGuideline(Base):
             "lunch_duration": self.lunch_duration,
             "break_frequency": self.break_frequency,
             "break_duration": self.break_duration,
+            "misc_breaks": self.misc_breaks or [],
             "days_of_week": self.days_of_week,
             "start_date": self.start_date.isoformat() if self.start_date else None,
             "end_date": self.end_date.isoformat() if self.end_date else None,
