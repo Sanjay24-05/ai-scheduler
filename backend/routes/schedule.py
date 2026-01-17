@@ -57,13 +57,28 @@ async def generate_schedule(
             raise HTTPException(status_code=400, detail="User preferences not found")
         
         # Parse start date
-        start_date = None
+        from dateutil import parser
         if data.start_date:
-            from dateutil import parser
             start_date = parser.parse(data.start_date)
+        else:
+            start_date = datetime.now() + timedelta(days=1)
         
-        # Get calendar events (placeholder - will integrate with Google Calendar)
+        # Ensure start_date is midnight
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = start_date + timedelta(days=30)
+        
+        # Get calendar events from Google Calendar
         calendar_events = []
+        credentials = request.session.get("oauth_credentials")
+        if credentials:
+            try:
+                calendar_events = await calendar_service.get_calendar_events(
+                    credentials_dict=credentials,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+            except Exception as e:
+                logger.error(f"Failed to fetch calendar events for scheduling: {str(e)}")
         
         # Generate schedule
         result = await scheduler_service.generate_schedule(

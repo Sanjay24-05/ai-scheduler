@@ -163,14 +163,29 @@ class SchedulerService:
         last_break = None
         lunch_taken = False
         
+        # Ensure start_date is timezone-aware if tasks/events are
+        if not current_date.tzinfo:
+            import pytz
+            current_date = pytz.UTC.localize(current_date)
+        
         for task in sorted_tasks:
             scheduled = False
             days_tried = 0
+            
+            # Reset current_time for each task if we want to pack them
+            # or keep it for sequential scheduling.
+            # Here we keep current_time across tasks to avoid overlapping each other.
             
             while not scheduled and days_tried < max_days:
                 # Get working hours for current date
                 work_start = self._combine_datetime(current_date, preferences.working_hours_start)
                 work_end = self._combine_datetime(current_date, preferences.working_hours_end)
+                
+                # Ensure work hours are timezone aware
+                if not work_start.tzinfo:
+                    import pytz
+                    work_start = pytz.UTC.localize(work_start)
+                    work_end = pytz.UTC.localize(work_end)
                 
                 # Initialize current time if needed
                 if last_break is None:
@@ -182,6 +197,8 @@ class SchedulerService:
                         current_time = work_start
                         last_break = work_start
                         lunch_taken = False
+                    elif current_time < work_start:
+                        current_time = work_start
                 
                 # Get busy periods for this day
                 busy_periods = self._get_busy_periods(calendar_events, schedule, current_date)
@@ -189,27 +206,27 @@ class SchedulerService:
                 # Try to find a slot
                 task_duration = task.estimated_duration or 60  # Default 60 minutes
                 
-                # Check for lunch time
-                is_lunch, lunch_end = self._is_lunch_time(current_time, preferences, lunch_taken)
-                if is_lunch:
-                    current_time = lunch_end
-                    lunch_taken = True
-                
-                # Check for break
-                current_time, last_break = self._add_break_if_needed(
-                    current_time, last_break, preferences
-                )
-                
-                # Try to schedule task
-                slot_start = current_time
-                slot_end = slot_start + timedelta(minutes=task_duration)
-                
-                # Check if slot fits in working hours
-                if slot_end <= work_end:
+                while not scheduled and current_time + timedelta(minutes=task_duration) <= work_end:
+                    # Check for lunch time
+                    is_lunch, lunch_end = self._is_lunch_time(current_time, preferences, lunch_taken)
+                    if is_lunch:
+                        current_time = lunch_end
+                        lunch_taken = True
+                        continue # Re-check if this new time fits or has conflicts
+                    
+                    # Check for break
+                    new_curr, new_last = self._add_break_if_needed(current_time, last_break, preferences)
+                    if new_curr != current_time:
+                        current_time = new_curr
+                        last_break = new_last
+                        continue
+                    
+                    # Try to schedule task
+                    slot_start = current_time
+                    slot_end = slot_start + timedelta(minutes=task_duration)
+                    
                     # Check for conflicts
-                    has_conflict = self._check_slot_conflict(
-                        slot_start, slot_end, busy_periods
-                    )
+                    has_conflict = self._check_slot_conflict(slot_start, slot_end, busy_periods)
                     
                     if not has_conflict:
                         # Schedule the task
@@ -221,33 +238,27 @@ class SchedulerService:
                             "reasoning": self._generate_simple_reasoning(task, slot_start),
                         })
                         
-                        # Update current time with buffer
-                        current_time = slot_end + timedelta(minutes=preferences.buffer_time)
+                        # Update current time with buffer (at least 1 min to avoid boundary overlap)
+                        buffer = max(preferences.buffer_time, 1)
+                        current_time = slot_end + timedelta(minutes=buffer)
                         scheduled = True
                     else:
-                        # Move to next available slot
-                        next_slot = self._find_next_available_slot(
-                            current_time, busy_periods, task_duration, work_end
-                        )
-                        
-                        if next_slot:
+                        # Move to next available slot after the conflict
+                        next_slot = self._find_next_available_slot(current_time, busy_periods, task_duration, work_end)
+                        if next_slot and next_slot != current_time:
                             current_time = next_slot
                         else:
-                            # No more slots today, try next day
-                            current_date += timedelta(days=1)
-                            days_tried += 1
-                            current_time = self._combine_datetime(
-                                current_date, preferences.working_hours_start
-                            )
-                            last_break = current_time
-                            lunch_taken = False
-                else:
-                    # Task doesn't fit today, try next day
+                            # No more slots today
+                            break
+                
+                if not scheduled:
+                    # Try next day
                     current_date += timedelta(days=1)
                     days_tried += 1
-                    current_time = self._combine_datetime(
-                        current_date, preferences.working_hours_start
-                    )
+                    current_time = self._combine_datetime(current_date, preferences.working_hours_start)
+                    if not current_time.tzinfo:
+                        import pytz
+                        current_time = pytz.UTC.localize(current_time)
                     last_break = current_time
                     lunch_taken = False
             
@@ -285,11 +296,23 @@ class SchedulerService:
         for item in schedule:
             if item['start_time'].date() == date.date():
                 busy_periods.append((item['start_time'], item['end_time']))
+                
+        # Handle timezone awareness for all busy periods
+        normalized_busy = []
+        for start, end in busy_periods:
+            if start.tzinfo and not date.tzinfo:
+                start = start.replace(tzinfo=None)
+                end = end.replace(tzinfo=None)
+            elif not start.tzinfo and date.tzinfo:
+                import pytz
+                start = pytz.UTC.localize(start)
+                end = pytz.UTC.localize(end)
+            normalized_busy.append((start, end))
         
         # Sort by start time
-        busy_periods.sort(key=lambda x: x[0])
+        normalized_busy.sort(key=lambda x: x[0])
         
-        return busy_periods
+        return normalized_busy
     
     def _check_slot_conflict(
         self,
@@ -311,22 +334,18 @@ class SchedulerService:
         duration_minutes: int,
         work_end: datetime
     ) -> Optional[datetime]:
-        """Find the next available time slot."""
-        for busy_start, busy_end in busy_periods:
-            if busy_start > current_time:
-                # Check if there's a gap before this busy period
-                gap_duration = (busy_start - current_time).total_seconds() / 60
-                if gap_duration >= duration_minutes:
-                    return current_time
-                else:
-                    # Move to end of this busy period
-                    current_time = busy_end
+        """Find the next available time slot after a conflict."""
+        temp_time = current_time
         
-        # Check if there's time after all busy periods
-        if current_time < work_end:
-            remaining = (work_end - current_time).total_seconds() / 60
-            if remaining >= duration_minutes:
-                return current_time
+        for busy_start, busy_end in busy_periods:
+            # If there's an overlap
+            if temp_time < busy_end and (temp_time + timedelta(minutes=duration_minutes)) > busy_start:
+                # Move to the end of this busy period
+                temp_time = busy_end
+                
+        # After skipping all overlapping busy periods, check if we still fit in today
+        if temp_time + timedelta(minutes=duration_minutes) <= work_end:
+            return temp_time
         
         return None
     
