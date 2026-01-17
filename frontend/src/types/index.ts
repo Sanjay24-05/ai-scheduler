@@ -12,18 +12,22 @@ export interface User {
     updated_at?: string;
 }
 
-export enum TaskPriority {
-    HIGH = 'high',
-    MEDIUM = 'medium',
-    LOW = 'low',
-}
+export const TaskPriority = {
+    HIGH: 'high',
+    MEDIUM: 'medium',
+    LOW: 'low',
+} as const;
 
-export enum TaskStatus {
-    PENDING = 'pending',
-    SCHEDULED = 'scheduled',
-    COMPLETED = 'completed',
-    CANCELLED = 'cancelled',
-}
+export type TaskPriority = typeof TaskPriority[keyof typeof TaskPriority];
+
+export const TaskStatus = {
+    PENDING: 'pending',
+    SCHEDULED: 'scheduled',
+    COMPLETED: 'completed',
+    CANCELLED: 'cancelled',
+} as const;
+
+export type TaskStatus = typeof TaskStatus[keyof typeof TaskStatus];
 
 export interface Task {
     id: number;
@@ -35,7 +39,7 @@ export interface Task {
     estimated_duration?: number;
     is_flexible: boolean;
     status: TaskStatus;
-    ai_metadata?: any;
+    ai_metadata?: Record<string, unknown>;
     dependencies?: number[];
     created_at?: string;
     updated_at?: string;
@@ -85,7 +89,7 @@ export interface AIAnalysis {
     estimated_duration?: number;
     priority: string;
     deadline?: string;
-    dependencies: any[];
+    dependencies: number[];
     is_flexible: boolean;
     confidence: number;
     missing_info: string[];

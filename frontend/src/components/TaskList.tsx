@@ -2,8 +2,8 @@
  * Task list component
  */
 import { useState } from 'react';
-import { apiService } from '../services/api';
-import type { Task } from '../types';
+import { apiService } from '../services/api.ts';
+import type { Task } from '../types/index.ts';
 import { format } from 'date-fns';
 
 interface TaskListProps {

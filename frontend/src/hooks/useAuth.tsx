@@ -1,9 +1,10 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * Authentication hook for managing user state
  */
-import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { apiService } from '../services/api';
-import type { User } from '../types';
+import { useState, useEffect, createContext, useContext, type ReactNode } from 'react';
+import { apiService } from '../services/api.ts';
+import type { User } from '../types/index.ts';
 
 interface AuthContextType {
     user: User | null;
@@ -25,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const currentUser = await apiService.getCurrentUser();
             setUser(currentUser);
-        } catch (error) {
+        } catch {
             setUser(null);
         } finally {
             setLoading(false);

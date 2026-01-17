@@ -1,7 +1,8 @@
 /**
  * API client service for backend communication
  */
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios from 'axios';
+import type { AxiosInstance, AxiosError } from 'axios';
 import type {
     User,
     Task,
@@ -90,7 +91,7 @@ class APIService {
         return response.data;
     }
 
-    async getScheduleSuggestions(taskIds: number[]): Promise<any> {
+    async getScheduleSuggestions(taskIds: number[]): Promise<unknown> {
         const response = await this.client.post('/api/ai/suggest-schedule', { task_ids: taskIds });
         return response.data;
     }
@@ -114,7 +115,7 @@ class APIService {
         return response.data;
     }
 
-    async getScheduleExplanation(taskId: number): Promise<any> {
+    async getScheduleExplanation(taskId: number): Promise<unknown> {
         const response = await this.client.get(`/api/schedule/explain/${taskId}`);
         return response.data;
     }
@@ -125,14 +126,14 @@ class APIService {
         return response.data;
     }
 
-    async syncToCalendar(scheduleIds?: number[]): Promise<any> {
+    async syncToCalendar(scheduleIds?: number[]): Promise<unknown> {
         const response = await this.client.post('/api/calendar/sync', {
             schedule_ids: scheduleIds,
         });
         return response.data;
     }
 
-    async getAvailability(date: string, duration: number = 60): Promise<any> {
+    async getAvailability(date: string, duration: number = 60): Promise<unknown> {
         const response = await this.client.get('/api/calendar/availability', {
             params: { date, duration },
         });

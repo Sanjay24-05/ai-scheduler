@@ -1,8 +1,9 @@
 /**
  * Task creation form component
  */
-import { useState } from 'react';
-import { apiService } from '../services/api';
+import { useState, type FormEvent } from 'react';
+import { apiService } from '../services/api.ts';
+import { TaskPriority } from '../types/index.ts';
 
 interface TaskFormProps {
     onSuccess: () => void;
@@ -52,7 +53,7 @@ export default function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
 
         try {
@@ -60,7 +61,7 @@ export default function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
             await apiService.createTask({
                 title: formData.title,
                 description: formData.description || undefined,
-                priority: formData.priority as any,
+                priority: formData.priority as TaskPriority,
                 deadline: formData.deadline || undefined,
                 estimated_duration: formData.estimated_duration ? parseInt(formData.estimated_duration) : undefined,
                 is_flexible: formData.is_flexible,

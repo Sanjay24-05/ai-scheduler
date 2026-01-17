@@ -1,7 +1,7 @@
 /**
  * Schedule view component
  */
-import type { Schedule } from '../types';
+import type { Schedule } from '../types/index.ts';
 import { format, parseISO } from 'date-fns';
 
 interface ScheduleViewProps {
@@ -78,10 +78,10 @@ export default function ScheduleView({ schedules }: ScheduleViewProps) {
                                             {schedule.task?.priority && (
                                                 <span
                                                     className={`px-2 py-1 rounded-full text-xs font-medium ${schedule.task.priority === 'high'
-                                                            ? 'bg-red-100 text-red-800'
-                                                            : schedule.task.priority === 'medium'
-                                                                ? 'bg-yellow-100 text-yellow-800'
-                                                                : 'bg-green-100 text-green-800'
+                                                        ? 'bg-red-100 text-red-800'
+                                                        : schedule.task.priority === 'medium'
+                                                            ? 'bg-yellow-100 text-yellow-800'
+                                                            : 'bg-green-100 text-green-800'
                                                         }`}
                                                 >
                                                     {schedule.task.priority}
