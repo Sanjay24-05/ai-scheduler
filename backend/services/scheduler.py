@@ -40,7 +40,8 @@ class SchedulerService:
             
             # Deadline urgency (days until deadline)
             if task.deadline:
-                days_until = (task.deadline - datetime.now(task.deadline.tzinfo)).days
+                now = datetime.now(task.deadline.tzinfo) if task.deadline.tzinfo else datetime.now()
+                days_until = (task.deadline - now).days
                 # Closer deadlines get higher urgency (inverse)
                 urgency = 1.0 / max(days_until, 0.1)
             else:
@@ -55,8 +56,14 @@ class SchedulerService:
         return sorted(tasks, key=task_score)
     
     def _combine_datetime(self, date: datetime, time: dt_time) -> datetime:
-        """Combine date and time objects."""
-        return datetime.combine(date.date(), time)
+        """Combine date and time objects, preserving timezone from date."""
+        combined = datetime.combine(date.date(), time)
+        if date.tzinfo:
+            # Handle both pytz and native timezones
+            if hasattr(date.tzinfo, 'localize'):
+                return date.tzinfo.localize(combined.replace(tzinfo=None))
+            return combined.replace(tzinfo=date.tzinfo)
+        return combined
     
     def _add_break_if_needed(
         self,
@@ -362,7 +369,8 @@ class SchedulerService:
             reasons.append("high priority")
         
         if task.deadline:
-            days_until = (task.deadline - datetime.now(task.deadline.tzinfo)).days
+            now = datetime.now(task.deadline.tzinfo) if task.deadline.tzinfo else datetime.now()
+            days_until = (task.deadline - now).days
             if days_until <= 1:
                 reasons.append("urgent deadline")
             elif days_until <= 7:
