@@ -7,6 +7,7 @@ from models.task import Task, TaskPriority, TaskStatus
 from models.schedule import Schedule
 from models.preferences import UserPreferences
 import logging
+import pytz
 
 logger = logging.getLogger(__name__)
 
@@ -164,8 +165,7 @@ class SchedulerService:
         lunch_taken = False
         
         # Ensure start_date is timezone-aware if tasks/events are
-        if not current_date.tzinfo:
-            import pytz
+        if current_date.tzinfo is None:
             current_date = pytz.UTC.localize(current_date)
         
         for task in sorted_tasks:
@@ -182,8 +182,7 @@ class SchedulerService:
                 work_end = self._combine_datetime(current_date, preferences.working_hours_end)
                 
                 # Ensure work hours are timezone aware
-                if not work_start.tzinfo:
-                    import pytz
+                if work_start.tzinfo is None:
                     work_start = pytz.UTC.localize(work_start)
                     work_end = pytz.UTC.localize(work_end)
                 
@@ -263,8 +262,7 @@ class SchedulerService:
                     current_date += timedelta(days=1)
                     days_tried += 1
                     current_time = self._combine_datetime(current_date, preferences.working_hours_start)
-                    if not current_time.tzinfo:
-                        import pytz
+                    if current_time.tzinfo is None:
                         current_time = pytz.UTC.localize(current_time)
                     last_break = current_time
                     lunch_taken = False
@@ -311,8 +309,7 @@ class SchedulerService:
             if start.tzinfo and not date.tzinfo:
                 start = start.replace(tzinfo=None)
                 end = end.replace(tzinfo=None)
-            elif not start.tzinfo and date.tzinfo:
-                import pytz
+            elif start.tzinfo is None and date.tzinfo is not None:
                 start = pytz.UTC.localize(start)
                 end = pytz.UTC.localize(end)
             normalized_busy.append((start, end))

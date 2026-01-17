@@ -1,6 +1,7 @@
 """AI service for Mistral AI integration."""
 import json
 import httpx
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from config import settings
 import logging
@@ -20,6 +21,38 @@ class AIService:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+    
+    def _parse_json_response(self, response: str) -> Any:
+        """
+        Parse JSON from AI response, handling markdown code blocks.
+        
+        Args:
+            response: raw string from AI
+            
+        Returns:
+            Parsed JSON object
+        """
+        if not response:
+            return None
+            
+        clean_response = response.strip()
+        
+        # Remove markdown code blocks if present
+        if clean_response.startswith("```"):
+            # Find the first newline to skip ```json or ```
+            lines = clean_response.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines[-1].startswith("```"):
+                lines = lines[:-1]
+            clean_response = "\n".join(lines).strip()
+            
+        try:
+            return json.loads(clean_response)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse AI response: {clean_response}")
+            logger.error(f"Error: {str(e)}")
+            return None
     
     async def _make_request(self, messages: List[Dict[str, str]], temperature: float = 0.7) -> Optional[str]:
         """
@@ -68,11 +101,15 @@ class AIService:
         Returns:
             Dictionary with extracted task information
         """
-        prompt = f"""You are a task planning assistant. Analyze the following task description and extract:
+        current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        prompt = f"""You are a task planning assistant.
+Current date and time: {current_date}
+
+Analyze the following task description and extract:
 1. Task name/summary (concise title)
 2. Estimated duration (in minutes)
 3. Priority (high/medium/low)
-4. Deadline (if mentioned, in ISO format)
+4. Deadline (if mentioned, in ISO format. Use the current date to resolve relative dates like "tomorrow" or "Friday")
 5. Any dependencies or prerequisites
 6. Whether it requires focused time or can be interrupted (is_flexible: true/false)
 
@@ -112,9 +149,11 @@ If information is unclear or missing, include it in missing_info array."""
         
         try:
             # Parse JSON response
-            result = json.loads(response)
-            return result
-        except json.JSONDecodeError:
+            result = self._parse_json_response(response)
+            if result:
+                return result
+            raise ValueError("Empty or invalid parse result")
+        except Exception:
             logger.error(f"Failed to parse AI response: {response}")
             return {
                 "title": description[:100],
@@ -164,9 +203,9 @@ Respond ONLY with valid JSON array of strings:
                     "Is there a specific time of day that works best for this task?"]
         
         try:
-            questions = json.loads(response)
+            questions = self._parse_json_response(response)
             return questions if isinstance(questions, list) else []
-        except json.JSONDecodeError:
+        except Exception:
             logger.error(f"Failed to parse clarification questions: {response}")
             return ["How long do you estimate this task will take?"]
     
@@ -224,9 +263,11 @@ Respond ONLY with valid JSON:
             return {"suggestions": [], "warnings": ["AI service unavailable"]}
         
         try:
-            result = json.loads(response)
-            return result
-        except json.JSONDecodeError:
+            result = self._parse_json_response(response)
+            if result:
+                return result
+            raise ValueError("Empty or invalid parse result")
+        except Exception:
             logger.error(f"Failed to parse schedule suggestions: {response}")
             return {"suggestions": [], "warnings": ["Failed to parse AI response"]}
     
