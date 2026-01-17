@@ -6,9 +6,10 @@ import { format, parseISO } from 'date-fns';
 
 interface ScheduleViewProps {
     schedules: Schedule[];
+    onSync?: () => Promise<void>;
 }
 
-export default function ScheduleView({ schedules }: ScheduleViewProps) {
+export default function ScheduleView({ schedules, onSync }: ScheduleViewProps) {
     if (schedules.length === 0) {
         return (
             <div className="text-center py-12 bg-white rounded-lg shadow">
@@ -29,6 +30,16 @@ export default function ScheduleView({ schedules }: ScheduleViewProps) {
 
     return (
         <div className="space-y-6">
+            {onSync && schedules.some(s => !s.is_synced) && (
+                <div className="flex justify-end">
+                    <button
+                        onClick={onSync}
+                        className="btn-primary"
+                    >
+                        Sync All Now
+                    </button>
+                </div>
+            )}
             {Object.entries(groupedSchedules).map(([date, daySchedules]) => (
                 <div key={date} className="bg-white rounded-lg shadow p-6">
                     <h3 className="text-lg font-semibold mb-4 text-gray-900">

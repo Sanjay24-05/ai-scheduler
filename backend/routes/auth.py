@@ -101,8 +101,7 @@ async def callback(
         access_token = create_access_token({"sub": str(user.id)})
         
         # Redirect to frontend with token
-        frontend_url = request.url_for("root")  # Will be configured in main app
-        response = RedirectResponse(url=f"http://localhost:3000?token={access_token}")
+        response = RedirectResponse(url=f"{settings.frontend_url}?token={access_token}")
         response.set_cookie(
             key="access_token",
             value=access_token,

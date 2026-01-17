@@ -61,6 +61,17 @@ export default function Dashboard() {
         }
     };
 
+    const handleSyncToCalendar = async () => {
+        try {
+            await apiService.syncToCalendar();
+            await loadData();
+            alert('Schedule synced to Google Calendar successfully!');
+        } catch (error) {
+            console.error('Failed to sync to calendar:', error);
+            alert('Failed to sync to Google Calendar. Please make sure you have granted calendar permissions.');
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
@@ -80,6 +91,12 @@ export default function Dashboard() {
                             <p className="text-sm text-gray-600">Welcome, {user?.name}</p>
                         </div>
                         <div className="flex gap-4">
+                            <button
+                                onClick={handleSyncToCalendar}
+                                className="btn-secondary"
+                            >
+                                Sync to Calendar
+                            </button>
                             <button
                                 onClick={handleGenerateSchedule}
                                 className="btn-primary"
@@ -150,7 +167,10 @@ export default function Dashboard() {
                 ) : (
                     <div>
                         <h2 className="text-xl font-semibold mb-4">Your Schedule</h2>
-                        <ScheduleView schedules={schedules} />
+                        <ScheduleView
+                            schedules={schedules}
+                            onSync={handleSyncToCalendar}
+                        />
                     </div>
                 )}
             </main>
