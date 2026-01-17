@@ -38,7 +38,7 @@ def get_db():
 def init_db():
     """Initialize database by creating all tables."""
     # Import all models here to ensure they're registered with Base
-    from models import user, task, schedule, preferences
+    from models import user, task, schedule, preferences, time_guideline
     
     # Create all tables
     Base.metadata.create_all(bind=engine)

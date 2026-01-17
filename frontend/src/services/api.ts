@@ -153,6 +153,26 @@ class APIService {
         return response.data;
     }
 
+    // Time Guidelines (Presets)
+    async getTimeGuidelines(): Promise<any[]> {
+        const response = await this.client.get('/api/settings/guidelines');
+        return response.data;
+    }
+
+    async createTimeGuideline(data: any): Promise<any> {
+        const response = await this.client.post('/api/settings/guidelines', data);
+        return response.data;
+    }
+
+    async updateTimeGuideline(id: number, data: any): Promise<any> {
+        const response = await this.client.put(`/api/settings/guidelines/${id}`, data);
+        return response.data;
+    }
+
+    async deleteTimeGuideline(id: number): Promise<void> {
+        await this.client.delete(`/api/settings/guidelines/${id}`);
+    }
+
     async resetPreferences(): Promise<UserPreferences> {
         const response = await this.client.post('/api/settings/reset');
         return response.data;

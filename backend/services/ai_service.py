@@ -130,8 +130,8 @@ Respond ONLY with valid JSON in this format:
     "status": "COMPLETE" or "NEEDS_CLARIFICATION"
 }}
 
-Set status to COMPLETE only if you have at least a title and a reasonable guess for duration and priority.
-Otherwise, specify which fields are missing in missing_info and set status to NEEDS_CLARIFICATION.
+Set status to COMPLETE only if you have a title, estimated_duration, priority, AND a deadline (or confirmation that there is no deadline).
+If the deadline is missing or ambiguous (like "maybe tomorrow" without confirmation), specify it in missing_info and set status to NEEDS_CLARIFICATION.
 """
 
         messages = [{"role": "system", "content": system_prompt}]

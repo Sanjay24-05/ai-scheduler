@@ -69,24 +69,16 @@ class SchedulerService:
         self,
         current_time: datetime,
         last_break: datetime,
-        preferences: UserPreferences
+        guideline: Dict[str, Any]
     ) -> Tuple[datetime, datetime]:
-        """
-        Check if a break is needed and return break end time.
+        """Check if a break is needed."""
+        break_freq = guideline.get("break_frequency", 90)
+        break_dur = guideline.get("break_duration", 15)
         
-        Args:
-            current_time: Current scheduling time
-            last_break: Time of last break
-            preferences: User preferences
-            
-        Returns:
-            Tuple of (new_current_time, new_last_break)
-        """
         time_since_break = (current_time - last_break).total_seconds() / 60
         
-        if time_since_break >= preferences.break_frequency:
-            # Add break
-            break_end = current_time + timedelta(minutes=preferences.break_duration)
+        if time_since_break >= break_freq:
+            break_end = current_time + timedelta(minutes=break_dur)
             return break_end, break_end
         
         return current_time, last_break
@@ -94,31 +86,65 @@ class SchedulerService:
     def _is_lunch_time(
         self,
         current_time: datetime,
-        preferences: UserPreferences,
+        guideline: Dict[str, Any],
         lunch_taken: bool
     ) -> Tuple[bool, datetime]:
-        """
-        Check if it's lunch time and return lunch end time.
-        
-        Args:
-            current_time: Current scheduling time
-            preferences: User preferences
-            lunch_taken: Whether lunch has been taken
-            
-        Returns:
-            Tuple of (is_lunch_time, lunch_end_time)
-        """
-        if lunch_taken:
+        """Check if it's lunch time and return lunch end time."""
+        if lunch_taken or not guideline.get("lunch_time"):
             return False, current_time
         
-        lunch_start = self._combine_datetime(current_time, preferences.lunch_time)
-        lunch_end = lunch_start + timedelta(minutes=preferences.lunch_duration)
+        lunch_start = self._combine_datetime(current_time, guideline["lunch_time"])
+        lunch_end = lunch_start + timedelta(minutes=guideline.get("lunch_duration", 60))
         
-        # If current time is at or past lunch time, take lunch
-        if current_time >= lunch_start:
+        # If current_time has reached lunch_start
+        if current_time >= lunch_start and current_time < lunch_end:
             return True, lunch_end
-        
+            
         return False, current_time
+
+    def _get_effective_guideline(self, date: datetime, guidelines: List[Any], preferences: Any) -> Dict[str, Any]:
+        """Find the active guideline for a specific date, fallback to preferences."""
+        target_date = date.date()
+        day_of_week = date.isoweekday() % 7 # 0=Sunday, 1=Monday, ..., 6=Saturday
+        
+        # Filter guidelines that apply to this day and optionally date range
+        candidates = []
+        for g in guidelines:
+            # Check day of week
+            if day_of_week not in (g.days_of_week or []):
+                continue
+                
+            # Check date range
+            if g.start_date and target_date < g.start_date:
+                continue
+            if g.end_date and target_date > g.end_date:
+                continue
+                
+            candidates.append(g)
+            
+        if candidates:
+            # Take the first one (could be refined to find "most specific")
+            g = candidates[0]
+            return {
+                "working_hours_start": g.working_hours_start,
+                "working_hours_end": g.working_hours_end,
+                "lunch_time": g.lunch_time,
+                "lunch_duration": g.lunch_duration,
+                "break_frequency": g.break_frequency,
+                "break_duration": g.break_duration,
+                "buffer_time": 5 # Default buffer for presets
+            }
+            
+        # Fallback to default preferences
+        return {
+            "working_hours_start": preferences.working_hours_start,
+            "working_hours_end": preferences.working_hours_end,
+            "lunch_time": preferences.lunch_time,
+            "lunch_duration": preferences.lunch_duration,
+            "break_frequency": preferences.break_frequency,
+            "break_duration": preferences.break_duration,
+            "buffer_time": preferences.buffer_time
+        }
     
     async def generate_schedule(
         self,
@@ -137,7 +163,7 @@ class SchedulerService:
             user_id: User ID
             task_ids: List of task IDs to schedule
             calendar_events: Existing calendar events
-            preferences: User preferences
+            preferences: Default user preferences (fallback)
             start_date: Start date for scheduling (default: tomorrow)
             
         Returns:
@@ -155,6 +181,13 @@ class SchedulerService:
         
         if not moving_tasks:
             return {"schedule": [], "conflicts": [], "message": "No tasks to schedule"}
+            
+        # Get active guidelines
+        from models.time_guideline import TimeGuideline
+        guidelines = db.query(TimeGuideline).filter(
+            TimeGuideline.user_id == user_id,
+            TimeGuideline.is_active == True
+        ).all()
         
         # Prioritize tasks
         sorted_tasks = self.prioritize_tasks(tasks)
@@ -187,9 +220,12 @@ class SchedulerService:
             # Here we keep current_time across tasks to avoid overlapping each other.
             
             while not scheduled and days_tried < max_days:
+                # Get effective guideline for this date
+                effective = self._get_effective_guideline(current_date, guidelines, preferences)
+                
                 # Get working hours for current date
-                work_start = self._combine_datetime(current_date, preferences.working_hours_start)
-                work_end = self._combine_datetime(current_date, preferences.working_hours_end)
+                work_start = self._combine_datetime(current_date, effective["working_hours_start"])
+                work_end = self._combine_datetime(current_date, effective["working_hours_end"])
                 
                 # Ensure work hours are timezone aware
                 if work_start.tzinfo is None:
@@ -218,7 +254,7 @@ class SchedulerService:
                 
                 while not scheduled and current_time + timedelta(minutes=task_duration) <= work_end:
                     # Check for lunch time
-                    is_lunch, lunch_end = self._is_lunch_time(current_time, preferences, lunch_taken)
+                    is_lunch, lunch_end = self._is_lunch_time(current_time, effective, lunch_taken)
                     if is_lunch:
                         logger.debug(f"Encountered lunch, moving to {lunch_end.time()}")
                         current_time = lunch_end
@@ -226,7 +262,7 @@ class SchedulerService:
                         continue
                     
                     # Check for break
-                    new_curr, new_last = self._add_break_if_needed(current_time, last_break, preferences)
+                    new_curr, new_last = self._add_break_if_needed(current_time, last_break, effective)
                     if new_curr != current_time:
                         logger.debug(f"Encountered break, moving to {new_curr.time()}")
                         current_time = new_curr
@@ -251,9 +287,9 @@ class SchedulerService:
                         })
                         
                         # Update current time with buffer
-                        buffer = max(preferences.buffer_time, 1)
+                        buffer = max(effective.get("buffer_time", 5), 1)
                         current_time = slot_end + timedelta(minutes=buffer)
-                        last_break = current_time # Reset last_break for next task calculation if needed
+                        last_break = current_time # Reset last_break
                         scheduled = True
                         logger.debug(f"Successfully scheduled task {task.id} at {slot_start}")
                     else:

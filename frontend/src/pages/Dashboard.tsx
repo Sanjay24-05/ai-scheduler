@@ -8,6 +8,7 @@ import type { Task, Schedule } from '../types/index.ts';
 import TaskList from '../components/TaskList.tsx';
 import TaskForm from '../components/TaskForm.tsx';
 import ScheduleView from '../components/ScheduleView.tsx';
+import TimeGuidelines from '../components/TimeGuidelines.tsx';
 
 export default function Dashboard() {
     const { user, logout } = useAuth();
@@ -15,7 +16,7 @@ export default function Dashboard() {
     const [schedules, setSchedules] = useState<Schedule[]>([]);
     const [loading, setLoading] = useState(true);
     const [showTaskForm, setShowTaskForm] = useState(false);
-    const [activeTab, setActiveTab] = useState<'tasks' | 'schedule'>('tasks');
+    const [activeTab, setActiveTab] = useState<'tasks' | 'schedule' | 'settings'>('tasks');
 
     useEffect(() => {
         loadData();
@@ -171,6 +172,15 @@ export default function Dashboard() {
                         >
                             Schedule ({schedules.length})
                         </button>
+                        <button
+                            onClick={() => setActiveTab('settings')}
+                            className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'settings'
+                                ? 'border-primary-500 text-primary-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                }`}
+                        >
+                            Time Guidelines
+                        </button>
                     </nav>
                 </div>
 
@@ -198,13 +208,17 @@ export default function Dashboard() {
 
                         <TaskList tasks={tasks} onUpdate={loadData} />
                     </div>
-                ) : (
+                ) : activeTab === 'schedule' ? (
                     <div>
                         <h2 className="text-xl font-semibold mb-4">Your Schedule</h2>
                         <ScheduleView
                             schedules={schedules}
                             onSync={handleSyncToCalendar}
                         />
+                    </div>
+                ) : (
+                    <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-50">
+                        <TimeGuidelines />
                     </div>
                 )}
             </main>
