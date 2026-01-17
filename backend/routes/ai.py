@@ -17,6 +17,7 @@ router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 class TaskAnalysisRequest(BaseModel):
     description: str
+    history: Optional[List[Dict[str, str]]] = None
 
 
 class ClarificationRequest(BaseModel):
@@ -59,7 +60,7 @@ async def analyze_task(
             raise HTTPException(status_code=429, detail="AI rate limit exceeded. Please try again later.")
         
         # Analyze task
-        analysis = await ai_service.analyze_task(data.description)
+        analysis = await ai_service.analyze_task(data.description, data.history)
         
         return {
             "analysis": analysis,

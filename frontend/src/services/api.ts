@@ -11,6 +11,7 @@ import type {
     CalendarEvent,
     AIAnalysis,
     ScheduleResult,
+    Message,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -77,8 +78,8 @@ class APIService {
     }
 
     // AI
-    async analyzeTask(description: string): Promise<{ analysis: AIAnalysis; remaining_requests: number }> {
-        const response = await this.client.post('/api/ai/analyze-task', { description });
+    async analyzeTask(description: string, history?: Message[]): Promise<{ analysis: AIAnalysis; remaining_requests: number }> {
+        const response = await this.client.post('/api/ai/analyze-task', { description, history });
         return response.data;
     }
 
@@ -98,6 +99,11 @@ class APIService {
             task_ids: taskIds,
             start_date: startDate,
         });
+        return response.data;
+    }
+
+    async rescheduleAll(): Promise<ScheduleResult> {
+        const response = await this.client.post('/api/schedule/reschedule-all');
         return response.data;
     }
 

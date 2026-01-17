@@ -91,123 +91,130 @@ class AIService:
             logger.error(f"Unexpected error in AI request: {str(e)}")
             return None
     
-    async def analyze_task(self, description: str) -> Dict[str, Any]:
+    async def analyze_task(self, description: str, history: Optional[List[Dict[str, str]]] = None) -> Dict[str, Any]:
         """
         Analyze a task description and extract metadata.
         
         Args:
-            description: Natural language task description
+            description: Natural language task description or follow-up answer
+            history: Optional conversation history for context
             
         Returns:
             Dictionary with extracted task information
         """
         current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        prompt = f"""You are a task planning assistant.
+        
+        system_prompt = f"""You are a task planning assistant.
 Current date and time: {current_date}
 
-Analyze the following task description and extract:
-1. Task name/summary (concise title)
-2. Estimated duration (in minutes)
-3. Priority (high/medium/low)
-4. Deadline (if mentioned, in ISO format. Use the current date to resolve relative dates like "tomorrow" or "Friday")
-5. Any dependencies or prerequisites
-6. Whether it requires focused time or can be interrupted (is_flexible: true/false)
+Your goal is to extract structured task information from the user's input.
+If information is missing, you must flag it so follow-up questions can be asked.
 
-Task: "{description}"
+Extract:
+1. title: Concise summary
+2. estimated_duration: In minutes (int)
+3. priority: "high", "medium", or "low"
+4. deadline: ISO format or null. Resolve relative dates like "tomorrow".
+5. dependencies: List of task IDs or titles it depends on.
+6. is_flexible: boolean (true for interruptible tasks)
 
-Respond ONLY with valid JSON in this exact format:
+Respond ONLY with valid JSON in this format:
 {{
-    "title": "extracted task title",
-    "estimated_duration": 60,
-    "priority": "medium",
-    "deadline": "2024-01-20T17:00:00" or null,
+    "title": "string",
+    "estimated_duration": int or null,
+    "priority": "string",
+    "deadline": "ISO string" or null,
     "dependencies": [],
-    "is_flexible": true,
-    "confidence": 0.8,
-    "missing_info": ["list of unclear details"]
+    "is_flexible": bool,
+    "missing_info": ["field_name1", "field_name2"],
+    "status": "COMPLETE" or "NEEDS_CLARIFICATION"
 }}
 
-If information is unclear or missing, include it in missing_info array."""
+Set status to COMPLETE only if you have at least a title and a reasonable guess for duration and priority.
+Otherwise, specify which fields are missing in missing_info and set status to NEEDS_CLARIFICATION.
+"""
 
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
+        messages = [{"role": "system", "content": system_prompt}]
         
-        response = await self._make_request(messages, temperature=0.3)
+        if history:
+            messages.extend(history)
+            
+        messages.append({"role": "user", "content": description})
+        
+        response = await self._make_request(messages, temperature=0.2)
         
         if not response:
             return {
                 "title": description[:100],
-                "estimated_duration": None,
-                "priority": "medium",
-                "deadline": None,
-                "dependencies": [],
-                "is_flexible": True,
-                "confidence": 0.0,
+                "status": "ERROR",
                 "missing_info": ["AI service unavailable"]
             }
         
         try:
-            # Parse JSON response
             result = self._parse_json_response(response)
             if result:
+                # Ensure status is present
+                if "status" not in result:
+                    result["status"] = "COMPLETE" if not result.get("missing_info") else "NEEDS_CLARIFICATION"
                 return result
             raise ValueError("Empty or invalid parse result")
         except Exception:
             logger.error(f"Failed to parse AI response: {response}")
             return {
                 "title": description[:100],
-                "estimated_duration": None,
-                "priority": "medium",
-                "deadline": None,
-                "dependencies": [],
-                "is_flexible": True,
-                "confidence": 0.0,
+                "status": "ERROR",
                 "missing_info": ["Failed to parse AI response"]
             }
     
-    async def generate_clarifications(self, task_data: Dict[str, Any]) -> List[str]:
+    async def generate_clarifications(self, task_data: Dict[str, Any], history: Optional[List[Dict[str, str]]] = None) -> List[str]:
         """
-        Generate clarifying questions for a task.
-        
-        Args:
-            task_data: Task information dictionary
-            
-        Returns:
-            List of clarifying questions
+        Generate clarifying questions for a task with conversational context.
         """
-        prompt = f"""Based on this task information:
-Title: {task_data.get('title', 'Unknown')}
-Description: {task_data.get('description', 'No description')}
-Priority: {task_data.get('priority', 'Not specified')}
-Deadline: {task_data.get('deadline', 'Not specified')}
-Duration: {task_data.get('estimated_duration', 'Not specified')} minutes
+        prompt = f"""Based on this task analysis so far:
+{json.dumps(task_data, indent=2)}
 
-Generate 2-3 targeted questions to help schedule this task effectively. Focus on missing details like:
-- Exact duration if not specified
-- Flexibility (can it be moved/interrupted?)
-- Optimal time of day
-- Dependencies on other tasks
+Generate ONE short, friendly follow-up question to ask the user to clarify the most important missing details.
+Common missing details: duration, deadline, priority, or if they have dependencies.
 
-Respond ONLY with valid JSON array of strings:
-["Question 1?", "Question 2?", "Question 3?"]"""
+Respond ONLY with a JSON array containing the question:
+["Your short question here?"]"""
 
-        messages = [
-            {"role": "user", "content": prompt}
-        ]
+        messages = [{"role": "system", "content": "You are a helpful scheduling assistant."}]
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": prompt})
         
         response = await self._make_request(messages, temperature=0.5)
         
         if not response:
-            return ["How long do you estimate this task will take?", 
-                    "Is there a specific time of day that works best for this task?"]
+            return ["Could you tell me how long this task might take?"]
         
         try:
             questions = self._parse_json_response(response)
             return questions if isinstance(questions, list) else []
         except Exception:
-            logger.error(f"Failed to parse clarification questions: {response}")
-            return ["How long do you estimate this task will take?"]
+            return ["Could you provide more details about this task?"]
+
+    async def generate_rescheduling_explanation(self, updated_task: Dict, original_task: Optional[Dict], 
+                                                reason: str, context: Dict) -> str:
+        """
+        Generate an AI explanation for why a task was rescheduled.
+        """
+        prompt = f"""Explain why this task was shifted in the schedule:
+Task: {updated_task.get('title')}
+Reason for update: {reason}
+Original timing: {original_task.get('start_time') if original_task else 'Not scheduled'}
+New timing: {updated_task.get('start_time')}
+
+Provide a brief, supportive explanation (1-2 sentences) for the user."""
+
+        messages = [
+            {"role": "system", "content": "You are a supportive personal assistant."},
+            {"role": "user", "content": prompt}
+        ]
+        
+        response = await self._make_request(messages, temperature=0.6)
+        return response or f"Rescheduled {updated_task.get('title')} due to {reason}."
     
     async def suggest_schedule(self, tasks: List[Dict], calendar_events: List[Dict], 
                                preferences: Dict) -> Dict[str, Any]:

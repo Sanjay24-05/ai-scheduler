@@ -232,6 +232,95 @@ async def get_daily_schedule(
         raise HTTPException(status_code=500, detail="Failed to get daily schedule")
 
 
+@router.post("/reschedule-all")
+async def reschedule_all(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Reschedule all pending and flexible scheduled tasks.
+    """
+    try:
+        user_id = get_current_user_id(request)
+        
+        # Get all tasks that are not completed/cancelled
+        tasks = db.query(Task).filter(
+            Task.user_id == user_id,
+            Task.status.in_([TaskStatus.PENDING, TaskStatus.SCHEDULED])
+        ).all()
+        
+        if not tasks:
+            return {"schedule": [], "conflicts": [], "message": "No active tasks to reschedule"}
+            
+        task_ids = [t.id for t in tasks]
+        
+        # Get user preferences
+        preferences = db.query(UserPreferences).filter(
+            UserPreferences.user_id == user_id
+        ).first()
+        
+        # Parse today as start date
+        start_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = start_date + timedelta(days=30)
+        
+        # Get calendar events
+        calendar_events = []
+        credentials = request.session.get("oauth_credentials")
+        if credentials:
+            try:
+                calendar_events = await calendar_service.get_calendar_events(
+                    credentials_dict=credentials,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+            except Exception as e:
+                logger.error(f"Failed to fetch calendar events: {str(e)}")
+        
+        # Generate new schedule
+        result = await scheduler_service.generate_schedule(
+            db=db,
+            user_id=user_id,
+            task_ids=task_ids,
+            calendar_events=calendar_events,
+            preferences=preferences,
+            start_date=start_date
+        )
+        
+        # Update database
+        for item in result["schedule"]:
+            existing = db.query(Schedule).filter(
+                Schedule.task_id == item["task_id"],
+                Schedule.user_id == user_id
+            ).first()
+            
+            if existing:
+                existing.start_time = item["start_time"]
+                existing.end_time = item["end_time"]
+                existing.reasoning = item["reasoning"]
+                existing.is_synced = False
+            else:
+                schedule = Schedule(
+                    user_id=user_id,
+                    task_id=item["task_id"],
+                    start_time=item["start_time"],
+                    end_time=item["end_time"],
+                    reasoning=item["reasoning"],
+                    is_synced=False
+                )
+                db.add(schedule)
+                
+            task = db.query(Task).filter(Task.id == item["task_id"]).first()
+            if task:
+                task.status = TaskStatus.SCHEDULED
+        
+        db.commit()
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error in reschedule-all: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to reschedule tasks")
+
+
 @router.get("/explain/{task_id}")
 async def explain_scheduling(
     task_id: int,

@@ -143,14 +143,17 @@ class SchedulerService:
         Returns:
             Dictionary with schedule and conflicts
         """
-        # Get tasks
+        # Get tasks (including pending and flexible scheduled ones if needed)
         tasks = db.query(Task).filter(
             Task.id.in_(task_ids),
-            Task.user_id == user_id,
-            Task.status == TaskStatus.PENDING
+            Task.user_id == user_id
         ).all()
         
-        if not tasks:
+        # If we want to be truly adaptive, we should also consider 
+        # already scheduled tasks that are flexible and can be moved.
+        moving_tasks = tasks
+        
+        if not moving_tasks:
             return {"schedule": [], "conflicts": [], "message": "No tasks to schedule"}
         
         # Prioritize tasks
@@ -371,18 +374,25 @@ class SchedulerService:
         if task.deadline:
             now = datetime.now(task.deadline.tzinfo) if task.deadline.tzinfo else datetime.now()
             days_until = (task.deadline - now).days
-            if days_until <= 1:
+            if days_until <= 0:
+                reasons.append("deadline today")
+            elif days_until <= 2:
                 reasons.append("urgent deadline")
             elif days_until <= 7:
                 reasons.append("approaching deadline")
         
-        if start_time.hour < 12:
-            reasons.append("scheduled in morning for peak productivity")
-        
+        if start_time.hour < 11:
+            reasons.append("peak morning productivity")
+        elif start_time.hour > 16:
+            reasons.append("end of day wrap-up")
+            
         if not reasons:
-            reasons.append("scheduled based on availability")
+            reasons.append("optimal availability")
         
-        return f"Scheduled due to {', '.join(reasons)}."
+        primary = reasons[0]
+        secondary = f", {reasons[1]}" if len(reasons) > 1 else ""
+        
+        return f"Scheduled for {primary}{secondary}."
 
 
 # Global scheduler service instance

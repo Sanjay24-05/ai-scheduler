@@ -69,6 +69,18 @@ export default function Dashboard() {
         }
     };
 
+    const handleRescheduleAll = async () => {
+        try {
+            const result = await apiService.rescheduleAll();
+            await loadData();
+            setActiveTab('schedule');
+            alert('Schedule re-optimized successfully!');
+        } catch (error) {
+            console.error('Failed to reschedule:', error);
+            alert('Failed to re-optimize schedule');
+        }
+    };
+
     const handleSyncToCalendar = async () => {
         try {
             const result = await apiService.syncToCalendar() as any;
@@ -115,9 +127,15 @@ export default function Dashboard() {
                             </button>
                             <button
                                 onClick={handleGenerateSchedule}
-                                className="btn-primary"
+                                className="btn-secondary"
                             >
                                 Generate Schedule
+                            </button>
+                            <button
+                                onClick={handleRescheduleAll}
+                                className="btn-primary"
+                            >
+                                ⚡ Smart Reschedule
                             </button>
                             <button
                                 onClick={logout}

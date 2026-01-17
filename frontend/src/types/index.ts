@@ -89,10 +89,15 @@ export interface AIAnalysis {
     estimated_duration?: number;
     priority: string;
     deadline?: string;
-    dependencies: number[];
+    dependencies: string[];
     is_flexible: boolean;
-    confidence: number;
     missing_info: string[];
+    status: 'COMPLETE' | 'NEEDS_CLARIFICATION' | 'ERROR';
+}
+
+export interface Message {
+    role: 'user' | 'assistant' | 'system';
+    content: string;
 }
 
 export interface ScheduleResult {
