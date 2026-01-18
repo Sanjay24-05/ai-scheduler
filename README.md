@@ -1,4 +1,4 @@
-AI-Powered Personal Planning & Scheduling Agent
+## TaskWeaver
 
 An intelligent task scheduling application that uses AI to analyze tasks, understand natural language descriptions, and automatically create optimal schedules in Google Calendar.
 
