@@ -116,7 +116,7 @@ export default function Dashboard() {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex justify-between items-center">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">AI Scheduler</h1>
+                            <h1 className="text-2xl font-bold text-gray-900">TaskWeaver</h1>
                             <p className="text-sm text-gray-600">Welcome, {user?.name}</p>
                         </div>
                         <div className="flex gap-4">

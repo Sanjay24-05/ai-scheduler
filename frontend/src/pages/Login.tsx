@@ -12,7 +12,7 @@ export default function Login() {
             <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full">
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-gray-900 mb-2">
-                        AI Scheduler
+                        TaskWeaver
                     </h1>
                     <p className="text-gray-600">
                         Intelligent task planning powered by AI
