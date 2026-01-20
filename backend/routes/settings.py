@@ -32,6 +32,7 @@ class TimeGuidelineCreate(BaseModel):
     lunch_duration: int = 60
     break_frequency: int = 90
     break_duration: int = 15
+    buffer_time: int = 5
     misc_breaks: Optional[List[Dict[str, Any]]] = []
     days_of_week: List[int]
     start_date: Optional[str] = None  # YYYY-MM-DD
@@ -47,6 +48,7 @@ class TimeGuidelineUpdate(BaseModel):
     lunch_duration: Optional[int] = None
     break_frequency: Optional[int] = None
     break_duration: Optional[int] = None
+    buffer_time: Optional[int] = None
     misc_breaks: Optional[List[Dict[str, Any]]] = None
     days_of_week: Optional[List[int]] = None
     start_date: Optional[str] = None
@@ -246,6 +248,7 @@ async def create_time_guideline(
             lunch_duration=data.lunch_duration,
             break_frequency=data.break_frequency,
             break_duration=data.break_duration,
+            buffer_time=data.buffer_time,
             misc_breaks=data.misc_breaks,
             days_of_week=data.days_of_week,
             start_date=s_date,
@@ -294,6 +297,7 @@ async def update_time_guideline(
         if data.lunch_duration is not None: guideline.lunch_duration = data.lunch_duration
         if data.break_frequency is not None: guideline.break_frequency = data.break_frequency
         if data.break_duration is not None: guideline.break_duration = data.break_duration
+        if data.buffer_time is not None: guideline.buffer_time = data.buffer_time
         if data.misc_breaks is not None: guideline.misc_breaks = data.misc_breaks
         if data.days_of_week is not None: guideline.days_of_week = data.days_of_week
         if data.is_active is not None: guideline.is_active = data.is_active

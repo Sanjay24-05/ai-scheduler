@@ -35,6 +35,7 @@ export default function TimeGuidelines() {
         working_hours_end: '',
         lunch_time: '',
         lunch_duration: 60,
+        buffer_time: 5,
         misc_breaks: [] as MiscBreak[],
         days_of_week: [1, 2, 3, 4, 5],
         start_date: '',
@@ -125,6 +126,7 @@ export default function TimeGuidelines() {
             working_hours_end: g.working_hours_end ? g.working_hours_end.substring(0, 5) : '',
             lunch_time: g.lunch_time ? g.lunch_time.substring(0, 5) : '',
             lunch_duration: g.lunch_duration,
+            buffer_time: g.buffer_time || 5,
             misc_breaks: g.misc_breaks || [],
             days_of_week: g.days_of_week,
             start_date: g.start_date || '',
@@ -232,6 +234,16 @@ export default function TimeGuidelines() {
                                     type="number"
                                     value={formData.lunch_duration}
                                     onChange={e => setFormData({ ...formData, lunch_duration: parseInt(e.target.value) })}
+                                    className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg outline-none"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Buffer Between Tasks (min)</label>
+                                <input
+                                    type="number"
+                                    value={formData.buffer_time}
+                                    onChange={e => setFormData({ ...formData, buffer_time: parseInt(e.target.value) })}
                                     className="w-full px-4 py-2 bg-gray-50 border border-gray-100 rounded-lg outline-none"
                                 />
                             </div>
@@ -398,6 +410,12 @@ export default function TimeGuidelines() {
                                     </span>
                                 </div>
                             )}
+                            <div className="flex items-center gap-4 text-xs">
+                                <span className="text-gray-400 font-bold w-12">BUFFER</span>
+                                <span className="text-gray-600 font-medium">
+                                    {g.buffer_time || 5}m between tasks
+                                </span>
+                            </div>
                             {g.misc_breaks && g.misc_breaks.length > 0 && (
                                 <div className="flex items-start gap-4 text-xs">
                                     <span className="text-gray-400 font-bold w-12 mt-0.5">BREAKS</span>

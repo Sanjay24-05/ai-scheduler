@@ -30,6 +30,9 @@ class TimeGuideline(Base):
     break_frequency = Column(Integer, default=90)  # in minutes
     break_duration = Column(Integer, default=15)   # in minutes
     
+    # Custom buffer between tasks (minutes)
+    buffer_time = Column(Integer, default=5)  # in minutes
+    
     # Custom / Misc Fixed Breaks (JSON list of {"start_time": "HH:MM", "duration": int})
     misc_breaks = Column(JSON, nullable=True, default=[])
 
@@ -54,6 +57,7 @@ class TimeGuideline(Base):
             "lunch_duration": self.lunch_duration,
             "break_frequency": self.break_frequency,
             "break_duration": self.break_duration,
+            "buffer_time": self.buffer_time,
             "misc_breaks": self.misc_breaks or [],
             "days_of_week": self.days_of_week,
             "start_date": self.start_date.isoformat() if self.start_date else None,

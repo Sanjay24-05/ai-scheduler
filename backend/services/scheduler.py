@@ -134,7 +134,7 @@ class SchedulerService:
                 "break_frequency": g.break_frequency,
                 "break_duration": g.break_duration,
                 "misc_breaks": g.misc_breaks or [],
-                "buffer_time": 5
+                "buffer_time": g.buffer_time if g.buffer_time is not None else (preferences.buffer_time or 5)
             }
             
         # Fallback to default preferences
@@ -146,7 +146,7 @@ class SchedulerService:
             "break_frequency": preferences.break_frequency,
             "break_duration": preferences.break_duration,
             "misc_breaks": [],
-            "buffer_time": preferences.buffer_time
+            "buffer_time": preferences.buffer_time or 5
         }
     
     async def generate_schedule(
