@@ -29,6 +29,10 @@ class TaskCreate(BaseModel):
     dependencies: Optional[List[int]] = None
 
 
+class TaskCreateBulk(BaseModel):
+    tasks: List[TaskCreate]
+
+
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
@@ -156,6 +160,65 @@ async def create_task(
     except Exception as e:
         logger.error(f"Error creating task: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to create task")
+
+
+@router.post("/bulk")
+async def create_tasks_bulk(
+    payload: TaskCreateBulk,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Create multiple tasks in a single request."""
+    try:
+        user_id = get_current_user_id(request)
+
+        allowed, remaining = api_rate_limiter.is_allowed(str(user_id), settings.api_rate_limit)
+        if not allowed:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+        if not payload.tasks:
+            raise HTTPException(status_code=400, detail="No tasks provided")
+
+        created_tasks = []
+        for task_data in payload.tasks:
+            task_dict = task_data.dict()
+            is_valid, error = validate_task_input(task_dict)
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=error)
+
+            title = sanitize_input(task_data.title, max_length=500)
+            description = sanitize_input(task_data.description or "", max_length=5000)
+
+            deadline = None
+            if task_data.deadline:
+                from dateutil import parser
+                deadline = parser.parse(task_data.deadline)
+
+            task = Task(
+                user_id=user_id,
+                title=title,
+                description=description if description else None,
+                priority=TaskPriority(task_data.priority),
+                deadline=deadline,
+                estimated_duration=task_data.estimated_duration,
+                is_flexible=task_data.is_flexible,
+                dependencies=task_data.dependencies,
+                status=TaskStatus.PENDING,
+            )
+            db.add(task)
+            created_tasks.append(task)
+
+        db.commit()
+        for task in created_tasks:
+            db.refresh(task)
+
+        return [t.to_dict() for t in created_tasks]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating tasks in bulk: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create tasks")
 
 
 @router.get("/{task_id}")

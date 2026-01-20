@@ -27,6 +27,7 @@ export default function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
         estimated_duration: '',
         is_flexible: true,
     });
+    const [batch, setBatch] = useState<typeof formData[]>([]);
     const [analyzing, setAnalyzing] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -94,21 +95,63 @@ export default function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
+        await handleAddToBatch();
+        await handleSubmitBatch(true);
+    };
+
+    const handleAddToBatch = async () => {
+        if (!formData.title.trim()) {
+            alert('Title is required');
+            return;
+        }
+
+        setBatch(prev => [...prev, formData]);
+
+        // Reset form for next task
+        setFormData({
+            title: '',
+            description: '',
+            priority: 'medium',
+            deadline: '',
+            estimated_duration: '',
+            is_flexible: true,
+        });
+        setStep('CHAT');
+        setMessages([{ role: 'assistant', content: "Great! Add another task or submit the batch when you're ready." }]);
+    };
+
+    const handleSubmitBatch = async (skipEmptyCheck = false) => {
+        if (!skipEmptyCheck && batch.length === 0) {
+            alert('Add at least one task to the batch');
+            return;
+        }
+
+        // Include current form data if not empty and user clicks submit-all directly
+        const finalBatch = [...batch];
+        if (!skipEmptyCheck && formData.title.trim()) {
+            finalBatch.push(formData);
+        }
+
+        if (finalBatch.length === 0) {
+            alert('Nothing to submit');
+            return;
+        }
 
         try {
             setSubmitting(true);
-            await apiService.createTask({
-                title: formData.title,
-                description: formData.description || undefined,
-                priority: formData.priority as TaskPriority,
-                deadline: formData.deadline || undefined,
-                estimated_duration: formData.estimated_duration ? parseInt(formData.estimated_duration) : undefined,
-                is_flexible: formData.is_flexible,
-            });
+            await apiService.createTasks(finalBatch.map(t => ({
+                title: t.title,
+                description: t.description || undefined,
+                priority: t.priority as TaskPriority,
+                deadline: t.deadline || undefined,
+                estimated_duration: t.estimated_duration ? parseInt(t.estimated_duration) : undefined,
+                is_flexible: t.is_flexible,
+            })));
+            setBatch([]);
             onSuccess();
         } catch (error) {
-            console.error('Failed to create task:', error);
-            alert('Failed to create task');
+            console.error('Failed to create tasks:', error);
+            alert('Failed to create tasks');
         } finally {
             setSubmitting(false);
         }
@@ -202,8 +245,8 @@ export default function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
                                         type="button"
                                         onClick={() => setFormData({ ...formData, priority: p })}
                                         className={`flex-1 py-1 rounded text-[10px] font-bold transition-all border ${formData.priority === p
-                                                ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
-                                                : 'bg-white text-gray-400 border-gray-100 hover:border-primary-200'
+                                            ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                                            : 'bg-white text-gray-400 border-gray-100 hover:border-primary-200'
                                             }`}
                                     >
                                         {p.toUpperCase()}
@@ -247,21 +290,43 @@ export default function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
 
                         <div className="pt-4 space-y-2">
                             <button
-                                type="submit"
+                                type="button"
+                                onClick={handleAddToBatch}
                                 disabled={submitting || !formData.title}
+                                className="w-full py-2.5 bg-white text-primary-700 border border-primary-200 rounded-lg text-xs font-bold shadow-sm hover:bg-primary-50 transition-all disabled:opacity-50"
+                            >
+                                Add to Batch
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleSubmitBatch()}
+                                disabled={submitting || (batch.length === 0 && !formData.title)}
                                 className="w-full py-2.5 bg-primary-600 text-white rounded-lg text-xs font-bold shadow-md hover:bg-primary-700 transition-all disabled:opacity-50"
                             >
-                                {submitting ? 'CREATING...' : 'CREATE TASK'}
+                                {submitting ? 'CREATING...' : `Create ${batch.length + (formData.title ? 1 : 0)} Task${batch.length + (formData.title ? 1 : 0) === 1 ? '' : 's'}`}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setStep('REVIEW')}
                                 className="w-full py-2 text-gray-400 hover:text-primary-600 text-[10px] font-bold transition-all uppercase tracking-widest"
                             >
-                                Manual Entry 👉
                             </button>
                         </div>
                     </form>
+
+                    {batch.length > 0 && (
+                        <div className="mt-4 bg-white border border-gray-100 rounded-lg p-3 text-xs space-y-2">
+                            <div className="font-bold text-gray-700">Queued Tasks ({batch.length})</div>
+                            <ol className="list-decimal list-inside text-gray-600 space-y-1">
+                                {batch.map((t, idx) => (
+                                    <li key={idx} className="flex justify-between">
+                                        <span>{t.title}</span>
+                                        <span className="text-gray-400">{t.priority}</span>
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

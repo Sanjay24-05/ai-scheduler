@@ -63,6 +63,11 @@ class APIService {
         return response.data;
     }
 
+    async createTasks(data: Array<Partial<Task>>): Promise<Task[]> {
+        const response = await this.client.post('/api/tasks/bulk', { tasks: data });
+        return response.data;
+    }
+
     async updateTask(id: number, data: Partial<Task>): Promise<Task> {
         const response = await this.client.put(`/api/tasks/${id}`, data);
         return response.data;
