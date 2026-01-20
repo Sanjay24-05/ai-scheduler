@@ -104,13 +104,12 @@ class AIService:
         """
         current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        system_prompt = f"""You are a task planning assistant.
+                system_prompt = f"""You are a task planning assistant.
 Current date and time: {current_date}
 
-Your goal is to extract structured task information from the user's input.
-If information is missing, you must flag it so follow-up questions can be asked.
+Goal: extract one or more tasks from a single user message. The user may list multiple tasks in one sentence (e.g., "email Alex, finish report, and buy groceries"). Detect each task separately.
 
-Extract:
+For EACH task, extract:
 1. title: Concise summary
 2. estimated_duration: In minutes (int)
 3. priority: "high", "medium", or "low"
@@ -118,20 +117,23 @@ Extract:
 5. dependencies: List of task IDs or titles it depends on.
 6. is_flexible: boolean (true for interruptible tasks)
 
-Respond ONLY with valid JSON in this format:
-{{
-    "title": "string",
-    "estimated_duration": int or null,
-    "priority": "string",
-    "deadline": "ISO string" or null,
-    "dependencies": [],
-    "is_flexible": bool,
-    "missing_info": ["field_name1", "field_name2"],
-    "status": "COMPLETE" or "NEEDS_CLARIFICATION"
-}}
+Respond ONLY with valid JSON in this format (always use tasks array, even for one task):
+{
+    "tasks": [
+        {
+            "title": "string",
+            "estimated_duration": int or null,
+            "priority": "string",
+            "deadline": "ISO string" or null,
+            "dependencies": [],
+            "is_flexible": bool,
+            "missing_info": ["field_name1", "field_name2"],
+            "status": "COMPLETE" or "NEEDS_CLARIFICATION"
+        }
+    ]
+}
 
-Set status to COMPLETE only if you have a title, estimated_duration, priority, AND a deadline (or confirmation that there is no deadline).
-If the deadline is missing or ambiguous (like "maybe tomorrow" without confirmation), specify it in missing_info and set status to NEEDS_CLARIFICATION.
+Status per task: set COMPLETE only if title, estimated_duration, priority, AND a deadline (or confirmed no deadline) are present. Otherwise add missing fields to missing_info and set NEEDS_CLARIFICATION.
 """
 
         messages = [{"role": "system", "content": system_prompt}]
@@ -151,19 +153,49 @@ If the deadline is missing or ambiguous (like "maybe tomorrow" without confirmat
             }
         
         try:
-            result = self._parse_json_response(response)
-            if result:
-                # Ensure status is present
-                if "status" not in result:
-                    result["status"] = "COMPLETE" if not result.get("missing_info") else "NEEDS_CLARIFICATION"
-                return result
-            raise ValueError("Empty or invalid parse result")
+            raw = self._parse_json_response(response)
+            if not raw:
+                raise ValueError("Empty parse")
+
+            # Normalize to tasks array
+            tasks = raw.get("tasks") if isinstance(raw, dict) else None
+            if tasks is None:
+                tasks = [raw]
+
+            normalized = []
+            for item in tasks:
+                if not isinstance(item, dict):
+                    continue
+                status = item.get("status") or ("COMPLETE" if not item.get("missing_info") else "NEEDS_CLARIFICATION")
+                normalized.append({
+                    "title": item.get("title") or description[:100],
+                    "estimated_duration": item.get("estimated_duration"),
+                    "priority": item.get("priority") or "medium",
+                    "deadline": item.get("deadline"),
+                    "dependencies": item.get("dependencies") or [],
+                    "is_flexible": item.get("is_flexible", True),
+                    "missing_info": item.get("missing_info") or [],
+                    "status": status,
+                })
+
+            if not normalized:
+                raise ValueError("No tasks after normalization")
+
+            return {"tasks": normalized}
+
         except Exception:
             logger.error(f"Failed to parse AI response: {response}")
             return {
-                "title": description[:100],
-                "status": "ERROR",
-                "missing_info": ["Failed to parse AI response"]
+                "tasks": [{
+                    "title": description[:100],
+                    "estimated_duration": None,
+                    "priority": "medium",
+                    "deadline": None,
+                    "dependencies": [],
+                    "is_flexible": True,
+                    "missing_info": ["Failed to parse AI response"],
+                    "status": "ERROR"
+                }]
             }
     
     async def generate_clarifications(self, task_data: Dict[str, Any], history: Optional[List[Dict[str, str]]] = None) -> List[str]:

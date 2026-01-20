@@ -59,31 +59,51 @@ export default function TaskForm({ onSuccess, onCancel }: TaskFormProps) {
             const history = newMessages.slice(1);
             const result = await apiService.analyzeTask(userMessage, history);
 
-            // Update form with AI analysis incrementally
-            setFormData((prev) => ({
-                ...prev,
-                title: result.analysis.title || prev.title,
-                description: prev.description, // Keep description manual
-                estimated_duration: result.analysis.estimated_duration?.toString() || prev.estimated_duration,
-                priority: result.analysis.priority || prev.priority,
-                deadline: result.analysis.deadline || prev.deadline,
-                is_flexible: result.analysis.is_flexible ?? prev.is_flexible,
-            }));
+            const tasks = Array.isArray((result as any)?.analysis?.tasks)
+                ? (result as any).analysis.tasks
+                : [(result as any).analysis];
 
-            if (result.analysis.status === 'COMPLETE') {
-                setMessages([...newMessages, {
-                    role: 'assistant',
-                    content: "Got it! I've filled in the details for you. Anything else to add, or shall we save this?"
-                }]);
+            const completed: typeof formData[] = [];
+            const needsClarification: typeof formData[] = [];
+            const clarificationPrompts: string[] = [];
+
+            tasks.forEach((t: any, idx: number) => {
+                const data = {
+                    title: t?.title || '',
+                    description: '',
+                    priority: t?.priority || 'medium',
+                    deadline: t?.deadline || '',
+                    estimated_duration: t?.estimated_duration?.toString?.() || '',
+                    is_flexible: t?.is_flexible ?? true,
+                };
+
+                if (t?.status === 'COMPLETE') {
+                    completed.push(data);
+                } else {
+                    needsClarification.push(data);
+                    if (t?.missing_info?.length) {
+                        clarificationPrompts.push(`For task ${idx + 1} (${data.title || 'unnamed'}), could you clarify the ${t.missing_info.join(' or ')}?`);
+                    }
+                }
+            });
+
+            if (completed.length) {
+                setBatch(prev => [...prev, ...completed]);
+            }
+
+            if (needsClarification.length) {
+                setFormData(needsClarification[0]);
+                const prompt = clarificationPrompts[0] || "I need a bit more detail for the next task.";
+                setMessages([...newMessages, { role: 'assistant', content: prompt }]);
                 setStep('REVIEW');
             } else {
-                // If needs clarification, ask questions
-                if (result.analysis.missing_info.length > 0) {
-                    const botMsg = `Could you tell me a bit more about the ${result.analysis.missing_info.join(' or ')}?`;
-                    setMessages([...newMessages, { role: 'assistant', content: botMsg }]);
-                } else {
-                    setMessages([...newMessages, { role: 'assistant', content: "I see. Tell me more so I can schedule this perfectly." }]);
-                }
+                setMessages([...newMessages, {
+                    role: 'assistant',
+                    content: completed.length > 1
+                        ? `Great, I detected ${completed.length} tasks and queued them. Add more or submit the batch when ready.`
+                        : "Got it! I've filled in the details for you. Anything else to add, or shall we save this?"
+                }]);
+                setStep('REVIEW');
             }
         } catch (error) {
             console.error('Failed to analyze task:', error);
