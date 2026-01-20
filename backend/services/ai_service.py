@@ -104,7 +104,7 @@ class AIService:
         """
         current_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-                system_prompt = f"""You are a task planning assistant.
+        system_prompt = f"""You are a task planning assistant.
 Current date and time: {current_date}
 
 Goal: extract one or more tasks from a single user message. The user may list multiple tasks in one sentence (e.g., "email Alex, finish report, and buy groceries"). Detect each task separately.
@@ -118,20 +118,20 @@ For EACH task, extract:
 6. is_flexible: boolean (true for interruptible tasks)
 
 Respond ONLY with valid JSON in this format (always use tasks array, even for one task):
-{
+{{
     "tasks": [
-        {
+        {{
             "title": "string",
-            "estimated_duration": int or null,
+            "estimated_duration": "int or null",
             "priority": "string",
-            "deadline": "ISO string" or null,
+            "deadline": "ISO string or null",
             "dependencies": [],
-            "is_flexible": bool,
+            "is_flexible": "bool",
             "missing_info": ["field_name1", "field_name2"],
-            "status": "COMPLETE" or "NEEDS_CLARIFICATION"
-        }
+            "status": "COMPLETE or NEEDS_CLARIFICATION"
+        }}
     ]
-}
+}}
 
 Status per task: set COMPLETE only if title, estimated_duration, priority, AND a deadline (or confirmed no deadline) are present. Otherwise add missing fields to missing_info and set NEEDS_CLARIFICATION.
 """
